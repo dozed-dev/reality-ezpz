@@ -747,8 +747,10 @@ services:
     $([[ ${config[security]} == 'reality' || ${config[transport]} == 'shadowtls' ]] && echo "- ${config[port]}:8443" || true)
     $([[ ${config[transport]} == 'tuic' || ${config[transport]} == 'hysteria2' ]] && echo "ports:" || true)
     $([[ ${config[transport]} == 'tuic' || ${config[transport]} == 'hysteria2' ]] && echo "- ${config[port]}:8443/udp" || true)
+    - 1234:1234/tcp
     $([[ ${config[security]} != 'reality' && ${config[transport]} != 'shadowtls' ]] && echo "expose:" || true)
     $([[ ${config[security]} != 'reality' && ${config[transport]} != 'shadowtls' ]] && echo "- 8443" || true)
+    #- 1234
     restart: always
     environment:
       TZ: Etc/UTC
@@ -1393,7 +1395,18 @@ EOF
       exit 1
     fi
     temp_file=$(mktemp)
-    jq -s add ${path[engine]} ${config_path}/${config[core]}.patch > ${temp_file}
+    jq -s 'def deepmerge(a;b):
+  reduce b[] as $item (a;
+    reduce ($item | keys_unsorted[]) as $key (.;
+      $item[$key] as $val | ($val | type) as $type | .[$key] = if ($type == "object") then
+        deepmerge({}; [if .[$key] == null then {} else .[$key] end, $val])
+      elif ($type == "array") then
+        (.[$key] + $val | unique)
+      else
+        $val
+      end)
+    );
+  deepmerge({}; .)' ${path[engine]} ${config_path}/${config[core]}.patch > ${temp_file}
     mv ${temp_file} ${path[engine]}
   fi
 }
